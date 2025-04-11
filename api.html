@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>香港街区开发强度可视化</title>
+  <style>
+    body { 
+      margin: 0; 
+      padding: 0; 
+      display: flex; 
+      flex-direction: column; 
+      height: 100vh; 
+      font-family: 'Microsoft YaHei', sans-serif;
+    }
+    #header { 
+      height: 20px; 
+      background: #000000; 
+      color: white; 
+      padding: 20px;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+      display: flex;
+      align-items: center;
+      justify-content: left;
+    }
+    #header h2 {
+      margin: 0;
+      font-size: 24px;
+    }
+    #mapDiv { 
+      flex: 1; 
+      position: relative;
+    }
+    #basemapGallery { 
+      height: 140px; 
+      background: #f5f5f5; 
+      display: flex; 
+      gap: 15px; 
+      padding: 15px; 
+      overflow-x: auto; 
+      box-shadow: 0 -2px 4px rgba(0,0,0,0.1);
+    }
+    /* 切换按钮UI */
+    .basemap-btn {
+      flex: 0 0 160px;
+      height: 100px;
+      cursor: pointer;
+      border: 2px solid #1e4a7b; /* 蓝色边框 */
+      border-radius: 8px;
+      transition: all 0.3s;
+      background-color: #e6f7ff; /* 浅蓝色背景 */
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-size: 16px;
+      color: #1e4a7b;
+      font-weight: bold;
+      padding: 10px;
+    }
+    .basemap-btn:hover {
+      border-color: #1e4a7b;
+    }
+    arcgis-scale-bar {
+      position: absolute;
+      right: 15px; 
+      bottom: 30px;
+      z-index: 100;
+      --arcgis-scale-bar-text-color: #333;
+      --arcgis-scale-bar-line-color: #1e4a7b;
+    }
+  </style>
+  <link rel="stylesheet" href="https://js.arcgis.com/4.32/esri/themes/light/main.css">
+  <script type="module" src="https://js.arcgis.com/calcite-components/3.0.3/calcite.esm.js"></script>
+  <script src="https://js.arcgis.com/4.32/"></script>
+</head>
+<body>
+  <header id="header">
+    <h2>香港街区建筑密度分析</h2>
+  </header>
+  <div id="mapDiv">
+    <arcgis-scale-bar 
+      view="view"
+      unit="metric"
+      style="font-family: 'Microsoft YaHei'; font-size: 14px;">
+    </arcgis-scale-bar>
+  </div>
+  <div id="basemapGallery"></div>
+
+  <script>
+    require([
+      "esri/Map",
+      "esri/views/MapView",
+      "esri/layers/FeatureLayer",  
+      "esri/widgets/Legend",
+      "esri/widgets/LayerList",
+      "esri/widgets/Search",
+      "esri/widgets/ScaleBar", 
+      "esri/Basemap"
+    ], function(
+      Map, MapView, FeatureLayer, 
+      Legend, LayerList, Search, ScaleBar, Basemap
+    ) {
+
+      // 初始化地图
+      const map = new Map({
+        basemap: "streets-vector"
+      });
+
+      // 创建香港地图视图
+      const view = new MapView({
+        container: "mapDiv",
+        map: map,
+        center: [114.1694, 22.3193], 
+        zoom: 12
+      });
+
+      // 添加专题图层（示例：世界城市人口）
+      const featureLayer = new FeatureLayer({
+        url: "https://www.geosceneonline.cn/server/rest/services/Hosted/街区开发强度结果建筑密度/FeatureServer/0"
+      });
+      map.add(featureLayer);
+
+      // 添加微件
+      view.when(() => {
+        // 图例
+        const legend = new Legend({
+          view: view,
+          layerInfos: [{
+            layer: featureLayer,
+            title: "建筑密度图例"
+          }]
+        });
+        view.ui.add(legend, "bottom-left");
+
+        // 图层列表
+        const layerList = new LayerList({
+          view: view,
+          listItemCreatedFunction: (event) => {
+            const item = event.item;
+            if (item.layer === featureLayer) {
+              item.panel = {
+                content: "legend",
+                open: true
+              };
+            }
+          }
+        });
+        view.ui.add(layerList, "top-right");
+
+        // 搜索框
+        const search = new Search({
+          view: view,
+          popupEnabled: false,
+          includeDefaultSources: false,
+          sources: [{
+            layer: featureLayer,
+            searchFields: ["街区名称"],
+            displayField: "街区名称",
+            exactMatch: false,
+            outFields: ["*"],
+            name: "街区搜索",
+            placeholder: "输入街区名称",
+            resultGraphicEnabled: true
+          }]
+          
+        });
+        view.ui.add(search, {
+          position: "top-left",
+          index: 2 // 将搜索框添加到放大缩小按钮的右侧
+        });
+
+
+        // 添加比例尺微件
+        const scaleBar = new ScaleBar({
+          view: view,
+          unit: "metric" // 设置单位为公制
+        });
+        view.ui.add(scaleBar, "bottom-right"); // 添加到右下角
+      });
+
+      // 底图库配置
+      const basemaps = {
+        "街道图": "streets-vector",
+        "卫星图": "satellite",
+        "地形图": "terrain",
+        "深灰图": "dark-gray-vector"
+      };
+
+      // 生成底图切换按钮
+      const gallery = document.getElementById("basemapGallery");
+      Object.entries(basemaps).forEach(([name, id]) => {
+        const btn = document.createElement("div");
+        btn.className = "basemap-btn";
+        btn.title = name;
+        btn.style.backgroundImage = `url(https://www.arcgis.com/sharing/rest/content/items/${getBasemapId(id)}/info/${getThumbnail(id)})`;
+        btn.onclick = () => map.basemap = id;
+        gallery.appendChild(btn);
+       
+        const textElement = document.createElement("div");
+        textElement.textContent = name;
+        btn.appendChild(textElement);
+
+        btn.onclick = () => map.basemap = id;
+        gallery.appendChild(btn);
+      
+    });
+
+      function getBasemapId(id) {
+        const ids = {
+          "streets-vector": "3fcd75043d344c62820e1b0d7411c4c3",
+          "satellite": "c6bf13f308224d128d3dae3a99ba7ea4",
+          "terrain": "6e0e2c5793a940d5a8deec648f3f3d25",
+          "dark-gray-vector": "5e9b3680d35f4dccb6f9555b34e5e5f4"
+        };
+        return ids[id];
+      }
+
+      function getThumbnail(id) {
+        return id === "satellite" ? "thumbnail/ago_satellite.jpg" : "thumbnail/thumbnail.png";
+      }
+    });
+  </script>
+</body>
+</html>
